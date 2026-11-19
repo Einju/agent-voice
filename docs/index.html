@@ -283,7 +283,15 @@ const ABI = [
   "function agentId() view returns (address)"
 ];
 const ZERO = "0x0000000000000000000000000000000000000000";
-const readProvider = new ethers.JsonRpcProvider(CFG.rpcUrl);
+// Read-only provider with automatic failover: ethers tries the RPCs in order,
+// moving to the next one if the current stalls (>2 s) or errors. Quorum 1:
+// the first good answer wins.
+const RPCS = (CFG.rpcUrls && CFG.rpcUrls.length ? CFG.rpcUrls : [CFG.rpcUrl]);
+const readProvider = new ethers.FallbackProvider(
+  RPCS.map((url, i) => ({ provider: new ethers.JsonRpcProvider(url, CFG.chainId), priority: i + 1, stallTimeout: 2000, weight: 1 })),
+  CFG.chainId,
+  1
+);
 const readContract = CFG.contractAddress !== ZERO
   ? new ethers.Contract(CFG.contractAddress, ABI, readProvider)
   : null;
@@ -468,7 +476,7 @@ async function ensureNetwork() {
     if (e.code === 4902) {
       await eth.request({
         method: "wallet_addEthereumChain",
-        params: [{ chainId: chainIdHex, chainName: CFG.chainName, rpcUrls: [CFG.rpcUrl], nativeCurrency: { name: "BNB", symbol: "BNB", decimals: 18 }, blockExplorerUrls: [CFG.explorer] }],
+        params: [{ chainId: chainIdHex, chainName: CFG.chainName, rpcUrls: RPCS, nativeCurrency: { name: "BNB", symbol: "BNB", decimals: 18 }, blockExplorerUrls: [CFG.explorer] }],
       });
     } else { throw e; }
   }

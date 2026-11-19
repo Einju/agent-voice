@@ -6,5 +6,12 @@ window.AGENT_VOICE_CONFIG = {
   chainId: 56,
   chainName: "BNB Smart Chain",
   rpcUrl: "https://bsc-dataseed.binance.org",
+  // Fallback RPCs, tried in order when the primary stalls or fails. All are
+  // public BSC mainnet endpoints with CORS enabled (verified 2026-11-19).
+  rpcUrls: [
+    "https://bsc-dataseed.binance.org",
+    "https://bsc-dataseed1.binance.org",
+    "https://bsc.publicnode.com",
+  ],
   explorer: "https://bscscan.com",
 };
