@@ -97,6 +97,9 @@ Rules enforced by the contract (a violating call reverts, so check first):
    baw contract-call execute --requestId <requestId> --json
    ```
 7. Report the `txHash` (or the App-confirmation status) and a BscScan link.
+   If execute returns `status: PENDING_CONFIRMATION`, the user must approve
+   in the Binance App before the transaction can complete — tell them so,
+   and check BscScan for the `txHash` only after they confirm.
 
 ## Create-Poll Flow
 
@@ -138,3 +141,9 @@ Then preview and execute exactly as in the vote flow.
   it as-is and stop; do not attempt `execute`.
 - Developer Mode expired (`351802`) — tell the user to re-enable it in the
   Binance App, then re-check with `baw wallet settings --json`.
+- Developer Mode refused (`351804`) — the wallet's total balance is over
+  the Developer Mode cap. The user must reduce the balance below the cap
+  (or use a different agentic wallet) before enabling.
+- Expired preview — if `execute` fails because the preview expired, run
+  `preview` again for a fresh `requestId` and re-confirm with the user
+  before executing.
