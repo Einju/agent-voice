@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Voice — One Agent ID. One Vote.</title>
+<meta name="description" content="Agent Voice: polls for the Agent ID community on BNB Chain. Only Agent ID holders can create polls and vote — one Agent ID, one vote.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23F0B90B'/><text x='50' y='72' font-size='60' text-anchor='middle'>✓</text></svg>">
+<style>
+  :root {
+    --bg: #0e0e11;
+    --card: #18181d;
+    --card-2: #1f1f26;
+    --border: #2a2a33;
+    --text: #f0f0f2;
+    --muted: #9a9aa5;
+    --accent: #f0b90b;
+    --accent-dim: rgba(240, 185, 11, 0.14);
+    --green: #2ebd85;
+    --red: #e5484d;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 20px 80px; }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 0; gap: 12px; flex-wrap: wrap;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .logo {
+    width: 44px; height: 44px; border-radius: 12px; background: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; font-weight: 800; color: #111;
+  }
+  .brand h1 { font-size: 22px; letter-spacing: -0.3px; }
+  .brand p { font-size: 13px; color: var(--muted); margin-top: -2px; }
+  .net-badge {
+    font-size: 12px; padding: 4px 10px; border-radius: 999px;
+    border: 1px solid var(--border); color: var(--muted); white-space: nowrap;
+  }
+  .net-badge.mainnet { color: var(--green); border-color: rgba(46,189,133,.4); }
+
+  button {
+    font-family: inherit; cursor: pointer; border: none;
+    background: var(--accent); color: #111; font-weight: 700;
+    padding: 11px 20px; border-radius: 10px; font-size: 15px;
+    transition: opacity .15s, transform .05s;
+  }
+  button:hover { opacity: .9; }
+  button:active { transform: scale(.98); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.secondary {
+    background: var(--card-2); color: var(--text);
+    border: 1px solid var(--border); font-weight: 600;
+  }
+  button.small { padding: 7px 14px; font-size: 13px; border-radius: 8px; }
+
+  .hero {
+    background: linear-gradient(135deg, #1a1707 0%, var(--card) 60%);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 28px; margin: 8px 0 20px;
+  }
+  .hero h2 { font-size: 30px; letter-spacing: -0.5px; line-height: 1.2; }
+  .hero h2 span { color: var(--accent); }
+  .hero p { color: var(--muted); margin-top: 10px; max-width: 640px; }
+  .stats { display: flex; gap: 24px; margin-top: 20px; flex-wrap: wrap; }
+  .stat b { font-size: 24px; display: block; }
+  .stat span { font-size: 13px; color: var(--muted); }
+
+  .notice {
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 13px 16px; font-size: 14px; color: var(--muted);
+    background: var(--card); margin-bottom: 20px;
+  }
+  .notice.warn { border-color: rgba(229,72,77,.45); color: #f2b8b5; }
+  .notice.ok { border-color: rgba(46,189,133,.45); color: #a9e8cd; }
+  .notice b { color: var(--text); }
+
+  .section-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin: 28px 0 14px; gap: 12px; flex-wrap: wrap;
+  }
+  .section-head h3 { font-size: 19px; }
+  .section-head span { font-size: 13px; color: var(--muted); }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 22px; margin-bottom: 16px;
+  }
+  .poll-q { font-size: 18px; font-weight: 700; line-height: 1.35; }
+  .poll-meta {
+    font-size: 13px; color: var(--muted); margin: 8px 0 16px;
+    display: flex; gap: 14px; flex-wrap: wrap;
+  }
+  .opt { margin-bottom: 10px; }
+  .opt-row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 5px; gap: 10px; }
+  .opt-row .pct { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .bar {
+    height: 10px; background: var(--card-2); border-radius: 999px; overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .bar > div {
+    height: 100%; background: var(--accent); border-radius: 999px;
+    transition: width .4s ease; min-width: 0;
+  }
+  .opt.voted .bar > div { background: var(--green); }
+  .opt button { width: 100%; margin-top: 6px; }
+  .voted-tag {
+    display: inline-block; font-size: 12px; font-weight: 700; color: var(--green);
+    background: rgba(46,189,133,.12); border-radius: 6px; padding: 2px 8px; margin-left: 8px;
+  }
+  .ended-tag {
+    display: inline-block; font-size: 12px; font-weight: 700; color: var(--muted);
+    background: var(--card-2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 2px 8px; margin-left: 8px;
+  }
+
+  form.create label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin: 14px 0 6px; }
+  form.create label:first-child { margin-top: 0; }
+  input[type="text"], select {
+    width: 100%; background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); border-radius: 10px; padding: 11px 13px;
+    font-size: 15px; font-family: inherit; outline: none;
+  }
+  input[type="text"]:focus, select:focus { border-color: var(--accent); }
+  .opt-input { display: flex; gap: 8px; margin-bottom: 8px; }
+  .opt-input button { flex-shrink: 0; }
+  .form-actions { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+
+  .how { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 14px; }
+  @media (max-width: 640px) { .how { grid-template-columns: 1fr; } .hero h2 { font-size: 24px; } }
+  .how div {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 18px;
+  }
+  .how b { display: block; margin-bottom: 6px; }
+  .how p { font-size: 14px; color: var(--muted); }
+
+  footer {
+    margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--border);
+    font-size: 13px; color: var(--muted); display: flex; gap: 18px; flex-wrap: wrap;
+  }
+  #toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(80px);
+    background: var(--card-2); border: 1px solid var(--border); color: var(--text);
+    padding: 13px 20px; border-radius: 12px; font-size: 14px; max-width: 90vw;
+    transition: transform .25s ease; z-index: 50; box-shadow: 0 8px 30px rgba(0,0,0,.5);
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+  #toast.error { border-color: rgba(229,72,77,.5); }
+  .empty { text-align: center; color: var(--muted); padding: 36px 0; font-size: 15px; }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(0,0,0,.25); border-top-color: #111; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -2px; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="logo">✓</div>
+      <div>
+        <h1>Agent Voice</h1>
+        <p>Polls for the Agent ID community</p>
+      </div>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <span class="net-badge" id="netBadge">…</span>
+      <button id="connectBtn" class="secondary">Connect Wallet</button>
+    </div>
+  </header>
+
+  <div class="hero">
+    <h2>One Agent ID. <span>One vote.</span></h2>
+    <p>Agent Voice is a polling dApp for the 100,000+ holders of Binance Agent ID.
+       Only Agent ID holders can create polls and vote — and because each Agent ID is
+       non-transferable and one per user, every result is sybil-resistant by design.
+       No funds, no tokens, no pay-to-vote. Just the community's voice, on-chain.</p>
+    <div class="stats">
+      <div class="stat"><b id="statPolls">–</b><span>polls created</span></div>
+      <div class="stat"><b id="statVotes">–</b><span>votes cast</span></div>
+      <div class="stat"><b id="statVoters">–</b><span>Agent ID voters</span></div>
+    </div>
+  </div>
+
+  <div id="accountNotice" class="notice" style="display:none"></div>
+  <div id="deployNotice" class="notice warn" style="display:none"></div>
+
+  <div class="section-head">
+    <h3>Create a poll</h3>
+    <span>Agent ID holders only · 2–6 options · 1 hour – 30 days</span>
+  </div>
+  <div class="card">
+    <form class="create" id="createForm">
+      <label for="q">Question (max 280 characters)</label>
+      <input type="text" id="q" maxlength="280" placeholder="e.g. Which topic should the Agent ID community discuss next?" required>
+      <label>Options (max 100 characters each)</label>
+      <div id="optionsBox"></div>
+      <button type="button" id="addOpt" class="secondary small">+ Add option</button>
+      <label for="dur">Voting duration</label>
+      <select id="dur">
+        <option value="86400">1 day</option>
+        <option value="259200" selected>3 days</option>
+        <option value="604800">7 days</option>
+        <option value="1209600">14 days</option>
+        <option value="2592000">30 days</option>
+      </select>
+      <div class="form-actions">
+        <button type="submit" id="createBtn">Create poll</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="section-head">
+    <h3>Polls</h3>
+    <span id="pollsCount"></span>
+  </div>
+  <div id="pollsList"><div class="empty">Loading polls…</div></div>
+
+  <div class="section-head"><h3>How it works</h3></div>
+  <div class="how">
+    <div><b>1 · Claim your Agent ID</b><p>In the Binance App: Wallet → Agentic Wallet banner → claim your free <i>name.ai</i> identity. One per user, non-transferable.</p></div>
+    <div><b>2 · Connect &amp; vote</b><p>Connect your wallet, pick a poll, cast your vote. The contract checks your Agent ID on-chain — one ID, one vote, no exceptions.</p></div>
+    <div><b>3 · Results are public</b><p>Every vote is an on-chain transaction anyone can verify. The contract holds no funds and has no owner or admin keys.</p></div>
+  </div>
+
+  <footer>
+    <span>Built for the <a href="https://www.binance.com/en/support/announcement/detail/95f5dbe0ea674a48a739b59e046648bf" target="_blank" rel="noopener">Binance Agent ID Hackathon</a></span>
+    <span id="contractLink"></span>
+    <span id="agentIdLink"></span>
+  </footer>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.17.0/dist/ethers.umd.min.js"></script>
+<script src="./config.js"></script>
+<script>
+const CFG = window.AGENT_VOICE_CONFIG;
+const ABI = [
+  "function pollCount() view returns (uint256)",
+  "function getPoll(uint256) view returns (address creator, string question, string[] options, uint256[] votes, uint256 endTime, bool exists)",
+  "function createPoll(string question, string[] options, uint256 durationSeconds) returns (uint256)",
+  "function vote(uint256 pollId, uint256 optionIndex)",
+  "function hasVoted(uint256, address) view returns (bool)",
+  "function voteOf(uint256, address) view returns (uint256)",
+  "function totalVotes(uint256) view returns (uint256)",
+  "function isAgent(address) view returns (bool)",
+  "function agentId() view returns (address)"
+];
+const ZERO = "0x0000000000000000000000000000000000000000";
+const readProvider = new ethers.JsonRpcProvider(CFG.rpcUrl);
+const readContract = CFG.contractAddress !== ZERO
+  ? new ethers.Contract(CFG.contractAddress, ABI, readProvider)
+  : null;
+
+let signer = null, signerAddress = null, userIsAgent = false;
+let pollsCache = [];
+
+const $ = (id) => document.getElementById(id);
+const short = (a) => a.slice(0, 6) + "…" + a.slice(-4);
+const esc = (s) => s.replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+function toast(msg, isError) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.className = isError ? "error" : "";
+  t.classList.add("show");
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove("show"), 5000);
+}
+
+function timeLeft(endTime) {
+  const s = Number(endTime) - Math.floor(Date.now() / 1000);
+  if (s <= 0) return "ended";
+  const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+  if (d > 0) return d + "d " + h + "h left";
+  if (h > 0) return h + "h " + m + "m left";
+  return m + "m left";
+}
+
+function renderAccountNotice() {
+  const n = $("accountNotice");
+  if (!signerAddress) { n.style.display = "none"; return; }
+  n.style.display = "block";
+  if (userIsAgent) {
+    n.className = "notice ok";
+    n.innerHTML = "<b>" + short(signerAddress) + " · Agent ID ✓</b> — you can create polls and vote.";
+  } else {
+    n.className = "notice warn";
+    n.innerHTML = "<b>" + short(signerAddress) + " · no Agent ID found.</b> You can browse polls, but voting needs an Agent ID — claim yours free in the Binance App (Wallet → Agentic Wallet).";
+  }
+}
+
+function optionInput(value) {
+  const row = document.createElement("div");
+  row.className = "opt-input";
+  row.innerHTML = '<input type="text" maxlength="100" placeholder="Option" value="' + esc(value || "") + '" required>' +
+    '<button type="button" class="secondary small remove-opt">✕</button>';
+  row.querySelector(".remove-opt").onclick = () => {
+    if ($("optionsBox").children.length <= 2) { toast("A poll needs at least 2 options.", true); return; }
+    row.remove();
+  };
+  return row;
+}
+
+function renderPolls() {
+  const list = $("pollsList");
+  if (!readContract) {
+    list.innerHTML = '<div class="empty">The contract has not been deployed to this network yet. Check back soon.</div>';
+    return;
+  }
+  if (pollsCache.length === 0) {
+    list.innerHTML = '<div class="empty">No polls yet — be the first Agent ID holder to create one.</div>';
+    return;
+  }
+  list.innerHTML = "";
+  for (const p of pollsCache) {
+    const total = p.votes.reduce((a, b) => a + Number(b), 0);
+    const ended = Date.now() / 1000 >= Number(p.endTime);
+    const card = document.createElement("div");
+    card.className = "card";
+    let opts = "";
+    p.options.forEach((opt, i) => {
+      const v = Number(p.votes[i]);
+      const pct = total ? Math.round((v / total) * 100) : 0;
+      const mine = p.userVoted && Number(p.userVote) === i;
+      opts += '<div class="opt' + (mine ? " voted" : "") + '">' +
+        '<div class="opt-row"><span>' + esc(opt) + (mine ? '<span class="voted-tag">YOUR VOTE</span>' : "") + '</span>' +
+        '<span class="pct">' + v + ' vote' + (v === 1 ? "" : "s") + ' · ' + pct + '%</span></div>' +
+        '<div class="bar"><div style="width:' + pct + '%"></div></div>' +
+        (!ended && !p.userVoted && signerAddress && userIsAgent
+          ? '<button class="secondary small" data-vote="' + i + '">Vote for this</button>' : "") +
+        '</div>';
+    });
+    card.innerHTML =
+      '<div class="poll-q">' + esc(p.question) + (ended ? '<span class="ended-tag">ENDED</span>' : "") + '</div>' +
+      '<div class="poll-meta"><span>by <a href="' + CFG.explorer + "/address/" + p.creator + '" target="_blank" rel="noopener">' + short(p.creator) + '</a></span>' +
+      '<span>' + total + ' vote' + (total === 1 ? "" : "s") + '</span>' +
+      '<span>' + timeLeft(p.endTime) + '</span>' +
+      '<span><a href="' + CFG.explorer + "/address/" + CFG.contractAddress + '" target="_blank" rel="noopener">poll #' + p.id + '</a></span></div>' +
+      opts;
+    card.querySelectorAll("[data-vote]").forEach((btn) => {
+      btn.onclick = () => castVote(p.id, Number(btn.dataset.vote), btn);
+    });
+    list.appendChild(card);
+  }
+}
+
+async function loadPolls() {
+  if (!readContract) { renderPolls(); return; }
+  try {
+    const count = Number(await readContract.pollCount());
+    const polls = [];
+    let totalVotes = 0;
+    const voters = new Set();
+    for (let id = count - 1; id >= 0; id--) {
+      const p = await readContract.getPoll(id);
+      if (!p.exists) continue;
+      const poll = {
+        id, creator: p.creator, question: p.question,
+        options: [...p.options], votes: p.votes.map(Number), endTime: p.endTime,
+        userVoted: false, userVote: null,
+      };
+      totalVotes += poll.votes.reduce((a, b) => a + b, 0);
+      if (signerAddress) {
+        poll.userVoted = await readContract.hasVoted(id, signerAddress);
+        if (poll.userVoted) poll.userVote = Number(await readContract.voteOf(id, signerAddress));
+      }
+      polls.push(poll);
+    }
+    pollsCache = polls;
+    $("statPolls").textContent = count;
+    $("statVotes").textContent = totalVotes;
+    $("statVoters").textContent = "30+ target";
+    $("pollsCount").textContent = count + " poll" + (count === 1 ? "" : "s") + " · " + totalVotes + " votes";
+    renderPolls();
+  } catch (e) {
+    console.error(e);
+    $("pollsList").innerHTML = '<div class="empty">Could not load polls. Please refresh — the network may be busy.</div>';
+  }
+}
+
+async function castVote(pollId, optionIndex, btn) {
+  if (!signer) return;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Voting…';
+  try {
+    const contract = new ethers.Contract(CFG.contractAddress, ABI, signer);
+    const tx = await contract.vote(pollId, optionIndex);
+    toast("Vote submitted — waiting for confirmation…");
+    await tx.wait();
+    toast("Vote confirmed on-chain.");
+    await loadPolls();
+  } catch (e) {
+    console.error(e);
+    toast("Vote failed: " + friendlyError(e), true);
+    btn.disabled = false;
+    btn.textContent = "Vote for this";
+  }
+}
+
+function friendlyError(e) {
+  const m = (e && (e.reason || e.shortMessage || e.message)) || "unknown error";
+  if (/user rejected/i.test(m)) return "transaction rejected in wallet.";
+  if (/NotAgentIdHolder/i.test(m)) return "this wallet holds no Agent ID.";
+  if (/AlreadyVoted/i.test(m)) return "you already voted in this poll.";
+  if (/PollEnded/i.test(m)) return "this poll has ended.";
+  if (/insufficient funds/i.test(m)) return "not enough BNB for gas.";
+  return m.slice(0, 120);
+}
+
+async function ensureNetwork() {
+  const chainIdHex = "0x" + CFG.chainId.toString(16);
+  try {
+    await window.ethereum.request({
+      method: "wallet_switchEthereumChain", params: [{ chainId: chainIdHex }],
+    });
+  } catch (e) {
+    if (e.code === 4902) {
+      await window.ethereum.request({
+        method: "wallet_addEthereumChain",
+        params: [{ chainId: chainIdHex, chainName: CFG.chainName, rpcUrls: [CFG.rpcUrl], nativeCurrency: { name: "BNB", symbol: "BNB", decimals: 18 }, blockExplorerUrls: [CFG.explorer] }],
+      });
+    } else { throw e; }
+  }
+}
+
+async function connect() {
+  if (!window.ethereum) {
+    toast("No wallet found. Install Binance Wallet or MetaMask, then refresh.", true);
+    return;
+  }
+  try {
+    await ensureNetwork();
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    signer = await provider.getSigner();
+    signerAddress = await signer.getAddress();
+    $("connectBtn").textContent = short(signerAddress);
+    if (readContract) userIsAgent = await readContract.isAgent(signerAddress);
+    renderAccountNotice();
+    await loadPolls();
+  } catch (e) {
+    console.error(e);
+    toast("Could not connect wallet: " + friendlyError(e), true);
+  }
+}
+
+$("connectBtn").onclick = connect;
+if (window.ethereum) {
+  window.ethereum.on("accountsChanged", () => location.reload());
+  window.ethereum.on("chainChanged", () => location.reload());
+}
+
+$("addOpt").onclick = () => {
+  if ($("optionsBox").children.length >= 6) { toast("A poll can have at most 6 options.", true); return; }
+  $("optionsBox").appendChild(optionInput(""));
+};
+$("optionsBox").appendChild(optionInput(""));
+$("optionsBox").appendChild(optionInput(""));
+
+$("createForm").onsubmit = async (ev) => {
+  ev.preventDefault();
+  if (!signerAddress) { toast("Connect your wallet first.", true); return; }
+  if (!userIsAgent) { toast("Creating a poll needs an Agent ID.", true); return; }
+  const question = $("q").value.trim();
+  const options = [...$("optionsBox").querySelectorAll("input")].map((i) => i.value.trim()).filter(Boolean);
+  if (options.length < 2) { toast("Add at least 2 options.", true); return; }
+  const duration = Number($("dur").value);
+  const btn = $("createBtn");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Creating…';
+  try {
+    const contract = new ethers.Contract(CFG.contractAddress, ABI, signer);
+    const tx = await contract.createPoll(question, options, duration);
+    toast("Poll submitted — waiting for confirmation…");
+    await tx.wait();
+    toast("Poll created.");
+    $("createForm").reset();
+    $("optionsBox").innerHTML = "";
+    $("optionsBox").appendChild(optionInput(""));
+    $("optionsBox").appendChild(optionInput(""));
+    await loadPolls();
+  } catch (e) {
+    console.error(e);
+    toast("Could not create poll: " + friendlyError(e), true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Create poll";
+  }
+};
+
+// Init
+$("netBadge").textContent = CFG.chainName;
+if (CFG.network === "mainnet") $("netBadge").classList.add("mainnet");
+if (CFG.contractAddress === ZERO) {
+  const d = $("deployNotice");
+  d.style.display = "block";
+  d.innerHTML = "<b>Contract not deployed yet.</b> This page will go live once Agent Voice is deployed to " + esc(CFG.chainName) + ".";
+} else {
+  $("contractLink").innerHTML = 'Contract: <a href="' + CFG.explorer + "/address/" + CFG.contractAddress + '" target="_blank" rel="noopener">' + short(CFG.contractAddress) + "</a>";
+}
+$("agentIdLink").innerHTML = 'Agent ID: <a href="' + CFG.explorer + "/address/" + CFG.agentIdContract + '" target="_blank" rel="noopener">' + short(CFG.agentIdContract) + "</a>";
+loadPolls();
+</script>
+</body>
+</html>

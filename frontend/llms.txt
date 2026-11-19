@@ -1,0 +1,54 @@
+# Agent Voice
+
+> Agent Voice is a polling dApp for the Agent ID community on BNB Smart Chain.
+> Only Binance Agent ID holders can create polls and vote — one Agent ID, one
+> vote. No funds, no tokens, no pay-to-vote. Built for the Binance Agent ID
+> Hackathon.
+
+## Links
+
+- Web dApp: AGENT_VOICE_URL (fill in after deploy)
+- Contract (BSC mainnet): AGENT_VOICE_ADDRESS (fill in after deploy; verify on BscScan)
+- Agent ID contract (SPACE ID, ERC-721): 0x60b9262456de011f7d15a54cdd8c48baaa8b022f
+- Source code: https://github.com/Einju/agent-voice
+- Agent skill: skills/agent-voice/SKILL.md in the repo
+
+## How it works
+
+- A poll has a question (max 280 chars), 2–6 options (max 100 chars each),
+  and a duration of 1 hour to 30 days.
+- Only addresses holding an Agent ID can call `createPoll` and `vote`.
+  The contract checks `balanceOf` on the Agent ID contract.
+- One vote per address per poll. Votes are on-chain and public.
+- The contract holds no funds, has no owner and no admin keys, and has no
+  payable functions. Calls always use value 0; only gas is paid.
+
+## Contract ABI (human-readable)
+
+```solidity
+function createPoll(string question, string[] options, uint256 durationSeconds) returns (uint256 pollId)
+function vote(uint256 pollId, uint256 optionIndex)
+function getPoll(uint256 pollId) view returns (address creator, string question, string[] options, uint256[] votes, uint256 endTime, bool exists)
+function pollCount() view returns (uint256)
+function totalVotes(uint256 pollId) view returns (uint256)
+function hasVoted(uint256 pollId, address voter) view returns (bool)
+function isAgent(address account) view returns (bool)
+```
+
+Selectors: vote 0xb384abef, createPoll 0xf8c860f4, getPoll 0x1a8cbcaa,
+isAgent 0x1ffbb064, pollCount 0x9207891d.
+
+## Voting via an AI agent (Binance Agentic Wallet CLI)
+
+AI agents with the `baw` CLI (`@binance/agentic-wallet`) can vote on the
+user's behalf. Prerequisites: the user has claimed an Agent ID, and
+Developer Mode is on in the Binance App. Full instructions are in the
+Agent Voice skill (`skills/agent-voice/SKILL.md`). The flow is always:
+preview the `vote` contract call, show the user the parsed transaction and
+risk details, get explicit confirmation, then execute. Value is always 0.
+
+## Voting via the web dApp
+
+Connect a wallet (Binance Wallet or MetaMask) on BNB Smart Chain, open a
+poll, and click an option to vote. The wallet asks for confirmation before
+anything is signed.

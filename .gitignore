@@ -1,0 +1,5 @@
+node_modules/
+build/
+deployer-wallet.json
+deployments/
+.DS_Store
