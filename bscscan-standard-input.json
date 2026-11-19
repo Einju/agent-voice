@@ -1,0 +1,27 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "AgentVoice.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.20;\n\n/// @title AgentVoice — polls where one Agent ID equals one vote.\n/// @notice Only addresses holding an Agent ID (SPACE ID .ai, ERC-721,\n///         non-transferable, one per user) can create polls and vote.\n///         One vote per address per poll. No funds are ever handled:\n///         no payable functions, no owner, no withdrawals.\ninterface IAgentID {\n    function balanceOf(address owner) external view returns (uint256);\n}\n\ncontract AgentVoice {\n    IAgentID public immutable agentId;\n    uint256 public pollCount;\n\n    struct Poll {\n        address creator;\n        string question;\n        string[] options;\n        uint256[] votes;\n        uint256 endTime;\n        bool exists;\n    }\n\n    mapping(uint256 => Poll) private polls;\n    mapping(uint256 => mapping(address => bool)) public hasVoted;\n    mapping(uint256 => mapping(address => uint256)) public voteOf;\n\n    event PollCreated(\n        uint256 indexed pollId,\n        address indexed creator,\n        string question,\n        uint256 optionCount,\n        uint256 endTime\n    );\n    event Voted(uint256 indexed pollId, address indexed voter, uint256 indexed optionIndex);\n\n    error NotAgentIdHolder();\n    error PollNotFound();\n    error PollEnded();\n    error AlreadyVoted();\n    error InvalidOption();\n    error InvalidPoll();\n\n    modifier onlyAgent() {\n        if (agentId.balanceOf(msg.sender) == 0) revert NotAgentIdHolder();\n        _;\n    }\n\n    constructor(address _agentId) {\n        require(_agentId != address(0), \"zero address\");\n        agentId = IAgentID(_agentId);\n    }\n\n    function createPoll(\n        string calldata question,\n        string[] calldata options,\n        uint256 durationSeconds\n    ) external onlyAgent returns (uint256 pollId) {\n        if (bytes(question).length == 0 || bytes(question).length > 280) revert InvalidPoll();\n        if (options.length < 2 || options.length > 6) revert InvalidPoll();\n        if (durationSeconds < 1 hours || durationSeconds > 30 days) revert InvalidPoll();\n\n        pollId = pollCount++;\n        Poll storage p = polls[pollId];\n        p.creator = msg.sender;\n        p.question = question;\n        // Push one by one: the old code generator cannot copy a calldata\n        // string[] to storage in a single assignment.\n        for (uint256 i = 0; i < options.length; i++) {\n            if (bytes(options[i]).length == 0 || bytes(options[i]).length > 100) revert InvalidPoll();\n            p.options.push(options[i]);\n        }\n        p.votes = new uint256[](options.length);\n        p.endTime = block.timestamp + durationSeconds;\n        p.exists = true;\n\n        emit PollCreated(pollId, msg.sender, question, options.length, p.endTime);\n    }\n\n    function vote(uint256 pollId, uint256 optionIndex) external onlyAgent {\n        Poll storage p = polls[pollId];\n        if (!p.exists) revert PollNotFound();\n        if (block.timestamp >= p.endTime) revert PollEnded();\n        if (optionIndex >= p.options.length) revert InvalidOption();\n        if (hasVoted[pollId][msg.sender]) revert AlreadyVoted();\n\n        hasVoted[pollId][msg.sender] = true;\n        voteOf[pollId][msg.sender] = optionIndex;\n        p.votes[optionIndex] += 1;\n\n        emit Voted(pollId, msg.sender, optionIndex);\n    }\n\n    function getPoll(\n        uint256 pollId\n    )\n        external\n        view\n        returns (\n            address creator,\n            string memory question,\n            string[] memory options,\n            uint256[] memory votes,\n            uint256 endTime,\n            bool exists\n        )\n    {\n        Poll storage p = polls[pollId];\n        return (p.creator, p.question, p.options, p.votes, p.endTime, p.exists);\n    }\n\n    function totalVotes(uint256 pollId) external view returns (uint256 total) {\n        Poll storage p = polls[pollId];\n        for (uint256 i = 0; i < p.votes.length; i++) {\n            total += p.votes[i];\n        }\n    }\n\n    function isAgent(address account) external view returns (bool) {\n        return agentId.balanceOf(account) > 0;\n    }\n}\n"
+    },
+    "MockAgentID.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.20;\n\n/// @notice Minimal mock of the SPACE ID Agent ID ERC-721, for BSC testnet\n///         testing only. Implements balanceOf plus a one-per-address mint.\n///         NEVER use on mainnet — mainnet uses the real Agent ID contract\n///         at 0x60b9262456de011f7d15a54cdd8c48baaa8b022f.\ncontract MockAgentID {\n    mapping(address => uint256) private _balances;\n\n    event Minted(address indexed to);\n\n    function mint(address to) external {\n        require(_balances[to] == 0, \"already has id\");\n        _balances[to] = 1;\n        emit Minted(to);\n    }\n\n    function balanceOf(address owner) external view returns (uint256) {\n        return _balances[owner];\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "evmVersion": "paris",
+    "optimizer": {
+      "enabled": true,
+      "runs": 1
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode"
+        ]
+      }
+    }
+  }
+}
