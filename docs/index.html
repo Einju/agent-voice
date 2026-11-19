@@ -235,6 +235,7 @@
 
   <footer>
     <span>Built for the <a href="https://www.binance.com/en/support/announcement/detail/95f5dbe0ea674a48a739b59e046648bf" target="_blank" rel="noopener">Binance Agent ID Hackathon</a></span>
+    <span style="flex-basis: 100%">Disclaimer: Agent Voice is an independent, non-custodial community dApp built for the Binance Agent ID Hackathon. It is not affiliated with, endorsed by, or officially operated by Binance.</span>
     <span id="contractLink"></span>
     <span id="agentIdLink"></span>
   </footer>
@@ -460,7 +461,12 @@ async function connect() {
     await loadPolls();
   } catch (e) {
     console.error(e);
-    toast("Could not connect wallet: " + friendlyError(e), true);
+    const m = (e && (e.reason || e.shortMessage || e.message)) || "";
+    if ((e && e.code === 4001) || /user rejected/i.test(m)) {
+      toast("Wallet connection or network switch was canceled", true);
+    } else {
+      toast("Could not connect wallet: " + friendlyError(e), true);
+    }
   }
 }
 
