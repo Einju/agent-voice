@@ -3,3 +3,6 @@ build/
 deployer-wallet.json
 deployments/
 .DS_Store
+.env
+.env.*
+!.env.example

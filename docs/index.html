@@ -158,6 +158,19 @@
   }
   #toast.show { transform: translateX(-50%) translateY(0); }
   #toast.error { border-color: rgba(229,72,77,.5); }
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px; z-index: 60;
+  }
+  .modal {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px; width: 100%; max-width: 380px;
+  }
+  .modal h3 { font-size: 19px; margin-bottom: 8px; }
+  .modal p { font-size: 14px; color: var(--muted); margin-bottom: 18px; }
+  .modal button { width: 100%; margin-bottom: 10px; }
+  .modal button:last-child { margin-bottom: 0; }
   .empty { text-align: center; color: var(--muted); padding: 36px 0; font-size: 15px; }
   .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(0,0,0,.25); border-top-color: #111; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -2px; margin-right: 6px; }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -243,6 +256,15 @@
 
 <div id="toast"></div>
 
+<div id="connectModal" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <h3>Connect Wallet</h3>
+    <p>Connect with your device's Web3 wallet. Only your wallet address is read — no signature is requested to connect. Inside the Binance App, open this site in the Web3 Wallet browser.</p>
+    <button id="web3WalletBtn">Web3 Wallet</button>
+    <button id="modalCancelBtn" class="secondary">Cancel</button>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/ethers@6.17.0/dist/ethers.umd.min.js"></script>
 <script src="./config.js"></script>
 <script>
@@ -265,6 +287,7 @@ const readContract = CFG.contractAddress !== ZERO
   : null;
 
 let signer = null, signerAddress = null, userIsAgent = false;
+let agentStatusKnown = false, activeChainId = null;
 let pollsCache = [];
 
 const $ = (id) => document.getElementById(id);
@@ -293,12 +316,17 @@ function renderAccountNotice() {
   const n = $("accountNotice");
   if (!signerAddress) { n.style.display = "none"; return; }
   n.style.display = "block";
-  if (userIsAgent) {
+  const chainLabel = activeChainId === null ? ""
+    : " · " + (activeChainId === CFG.chainId ? CFG.chainName : "Chain ID " + activeChainId);
+  if (!agentStatusKnown) {
+    n.className = "notice";
+    n.innerHTML = "<b>" + short(signerAddress) + chainLabel + " · Agent ID status unknown.</b> The network request to check your Agent ID failed — please refresh and try again.";
+  } else if (userIsAgent) {
     n.className = "notice ok";
-    n.innerHTML = "<b>" + short(signerAddress) + " · Agent ID ✓</b> — you can create polls and vote.";
+    n.innerHTML = "<b>" + short(signerAddress) + chainLabel + " · Agent ID ✓</b> — you can create polls and vote.";
   } else {
     n.className = "notice warn";
-    n.innerHTML = "<b>" + short(signerAddress) + " · no Agent ID found.</b> You can browse polls, but voting needs an Agent ID — claim yours free in the Binance App (Wallet → Agentic Wallet).";
+    n.innerHTML = "<b>" + short(signerAddress) + chainLabel + " · no Agent ID found.</b> You can browse polls, but voting needs an Agent ID — claim yours free in the Binance App (Wallet → Agentic Wallet).";
   }
 }
 
@@ -444,21 +472,34 @@ async function ensureNetwork() {
   }
 }
 
+function updateNetBadge() {
+  const b = $("netBadge");
+  if (activeChainId === null) return;
+  if (activeChainId === CFG.chainId) {
+    b.textContent = CFG.chainName + " · " + activeChainId;
+    b.classList.add("mainnet");
+  } else {
+    b.textContent = "Chain ID " + activeChainId;
+    b.classList.remove("mainnet");
+  }
+}
+
 async function connect() {
   const eth = walletProvider();
   if (!eth) {
     toast("No wallet found. Open this site inside the Binance App (Web3 Wallet → Browser), or install MetaMask, then refresh.", true);
     return;
   }
+  // Phase 1 — wallet connection and network switch. Only errors here are
+  // connection errors. No signature or transaction is requested.
   try {
     await ensureNetwork();
     const provider = new ethers.BrowserProvider(eth);
     signer = await provider.getSigner();
     signerAddress = await signer.getAddress();
+    activeChainId = Number((await provider.getNetwork()).chainId);
     $("connectBtn").textContent = short(signerAddress);
-    if (readContract) userIsAgent = await readContract.isAgent(signerAddress);
-    renderAccountNotice();
-    await loadPolls();
+    updateNetBadge();
   } catch (e) {
     console.error(e);
     const m = (e && (e.reason || e.shortMessage || e.message)) || "";
@@ -467,10 +508,41 @@ async function connect() {
     } else {
       toast("Could not connect wallet: " + friendlyError(e), true);
     }
+    return;
   }
+  // Phase 2 — on-chain reads through the public RPC. A failure here is a
+  // network/RPC problem, not a wallet problem: the wallet stays connected.
+  // The Agent ID check is an on-chain balanceOf on the official Agent ID
+  // contract (via the AgentVoice isAgent view); if the request fails, the
+  // status is unknown — never reported as "no Agent ID".
+  if (readContract) {
+    try {
+      userIsAgent = await readContract.isAgent(signerAddress);
+      agentStatusKnown = true;
+    } catch (e) {
+      console.error(e);
+      agentStatusKnown = false;
+      toast("Wallet connected, but the Agent ID status could not be checked (network error).", true);
+    }
+  }
+  renderAccountNotice();
+  await loadPolls();
 }
 
-$("connectBtn").onclick = connect;
+function openConnectModal() {
+  $("connectModal").style.display = "flex";
+}
+function closeConnectModal() {
+  $("connectModal").style.display = "none";
+}
+
+// Account access is requested only after the user picks an option in the
+// modal — never automatically on page load. Only the Web3 Wallet option is
+// offered; there is no QR login, pairing code, or seed/private-key prompt.
+$("connectBtn").onclick = openConnectModal;
+$("web3WalletBtn").onclick = () => { closeConnectModal(); connect(); };
+$("modalCancelBtn").onclick = closeConnectModal;
+$("connectModal").onclick = (ev) => { if (ev.target === $("connectModal")) closeConnectModal(); };
 (function () {
   const eth = walletProvider();
   if (eth) {
