@@ -186,6 +186,12 @@
   .modal p { font-size: 14px; color: var(--muted); margin-bottom: 18px; }
   .modal button { width: 100%; margin-bottom: 10px; }
   .modal button:last-child { margin-bottom: 0; }
+  #copyModalText {
+    width: 100%; background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); border-radius: 10px; padding: 11px 13px;
+    font-size: 13px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    outline: none; resize: vertical; margin-bottom: 14px;
+  }
   .empty { text-align: center; color: var(--muted); padding: 36px 0; font-size: 15px; }
   .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(0,0,0,.25); border-top-color: #111; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -2px; margin-right: 6px; }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -297,6 +303,15 @@
   </div>
 </div>
 
+<div id="copyModal" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <h3>Copy manually</h3>
+    <p>Automatic copy is blocked in this browser. Long-press the text below, select all, and copy it yourself.</p>
+    <textarea id="copyModalText" readonly rows="8"></textarea>
+    <button id="copyModalCloseBtn" class="secondary">Close</button>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/ethers@6.17.0/dist/ethers.umd.min.js"></script>
 <script src="./config.js"></script>
 <script>
@@ -317,14 +332,36 @@ const ZERO = "0x0000000000000000000000000000000000000000";
 // moving to the next one if the current stalls (>2 s) or errors. Quorum 1:
 // the first good answer wins.
 const RPCS = (CFG.rpcUrls && CFG.rpcUrls.length ? CFG.rpcUrls : [CFG.rpcUrl]);
-const readProvider = new ethers.FallbackProvider(
-  RPCS.map((url, i) => ({ provider: new ethers.JsonRpcProvider(url, CFG.chainId), priority: i + 1, stallTimeout: 2000, weight: 1 })),
-  CFG.chainId,
-  1
-);
-const readContract = CFG.contractAddress !== ZERO
-  ? new ethers.Contract(CFG.contractAddress, ABI, readProvider)
-  : null;
+// A fresh provider + contract per load. A FallbackProvider permanently drops
+// endpoints that fail (their configs keep a fatal-error flag), so after a
+// total failure the same instance throws "no runners?!" on every later call
+// — a retry must start from a fresh instance. JsonRpcProviders are plain
+// HTTP clients, so rebuilding is cheap.
+function makeReadContract() {
+  if (CFG.contractAddress === ZERO) return null;
+  const provider = new ethers.FallbackProvider(
+    RPCS.map((url, i) => {
+      // A per-request timeout is mandatory: the FallbackProvider's initial
+      // sync waits for EVERY endpoint (getBlockNumber on each), and the
+      // default FetchRequest timeout is 5 minutes — one hanging endpoint
+      // would stall the whole page for 5 minutes. 5 s bounds the worst case
+      // while giving slow public endpoints a fair chance; a timed-out
+      // endpoint is dropped as failed and the others serve.
+      const req = new ethers.FetchRequest(url);
+      req.timeout = 5000;
+      return { provider: new ethers.JsonRpcProvider(req, CFG.chainId), priority: i + 1, stallTimeout: 2000, weight: 1 };
+    }),
+    CFG.chainId,
+    // Quorum MUST be passed as { quorum: 1 }: the third argument is an
+    // options object, not a bare number. Passing 1 silently fell back to
+    // the default quorum of ceil(totalWeight / 2) — 2 of 3 endpoints, and
+    // 4 of 7 — so a single working endpoint was never enough. That is what
+    // made the polls fail to load whenever most endpoints were flaky.
+    { quorum: 1 }
+  );
+  return new ethers.Contract(CFG.contractAddress, ABI, provider);
+}
+let readContract = makeReadContract();
 
 let signer = null, signerAddress = null, userIsAgent = false;
 let agentStatusKnown = false, activeChainId = null;
@@ -462,20 +499,62 @@ function handleEndedSelection() {
   }
 }
 
-// Copy helper shared by the section button and the per-option buttons.
-// Copying is text-only: it never connects a wallet or starts a transaction.
+// Copy helper shared by the section button, the per-option buttons, and the
+// poll-link buttons. Copying is text-only: it never connects a wallet or
+// starts a transaction. Returns true when the text reached the clipboard (as
+// far as we can tell) and false otherwise — callers must check the result,
+// because a failed copy must never be reported as "Copied!". The Clipboard
+// API is blocked in some browsers and in-app WebViews; the execCommand
+// fallback returns false when the copy did not happen.
 async function copyText(text) {
   try {
-    await navigator.clipboard.writeText(text);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
   } catch (e) {
-    // Clipboard API unavailable (older browser / permissions): fall back to
-    // a temporary textarea + execCommand.
+    // Fall through to the execCommand path below.
+  }
+  try {
     const ta = document.createElement("textarea");
     ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
     document.body.appendChild(ta);
     ta.select();
-    document.execCommand("copy");
+    // iOS Safari needs an explicit selection range.
+    ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand("copy");
     document.body.removeChild(ta);
+    return ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+// When automatic copy is blocked, show the text in a modal so the user can
+// copy it manually (long-press, select all, copy). The text is pre-selected.
+function openCopyModal(text) {
+  const ta = $("copyModalText");
+  ta.value = text;
+  $("copyModal").style.display = "flex";
+  ta.focus();
+  ta.select();
+}
+function closeCopyModal() {
+  $("copyModal").style.display = "none";
+}
+
+// Copy with an honest result: on success the button shows "Copied!" and a
+// toast confirms; on failure the manual-copy modal opens instead.
+async function copyOrShow(text, btn, label, toastMsg) {
+  if (await copyText(text)) {
+    btn.textContent = "Copied!";
+    setTimeout(() => { btn.textContent = label; }, 2000);
+    toast(toastMsg);
+  } else {
+    openCopyModal(text);
   }
 }
 
@@ -565,18 +644,12 @@ function renderPolls() {
           toast("Agent prompt unavailable: site configuration mismatch.", true);
           return;
         }
-        await copyText($("agentPrompt").textContent.trim());
-        btn.textContent = "Copied!";
-        setTimeout(() => { btn.textContent = "Copy agent prompt"; }, 2000);
-        toast("Prompt copied — paste it to your AI agent.");
+        await copyOrShow($("agentPrompt").textContent.trim(), btn, "Copy agent prompt", "Prompt copied — paste it to your AI agent.");
       };
     });
     card.querySelectorAll("[data-link]").forEach((btn) => {
       btn.onclick = async () => {
-        await copyText(pollLink(p.id));
-        btn.textContent = "Copied!";
-        setTimeout(() => { btn.textContent = "Copy poll link"; }, 2000);
-        toast("Poll link copied — paste it to your AI agent.");
+        await copyOrShow(pollLink(p.id), btn, "Copy poll link", "Poll link copied — paste it to your AI agent.");
       };
     });
     list.appendChild(card);
@@ -584,6 +657,9 @@ function renderPolls() {
 }
 
 async function loadPolls() {
+  // Fresh provider every load: a FallbackProvider that failed once is wedged
+  // ("no runners?!"), so retries must not reuse it.
+  readContract = makeReadContract();
   if (!readContract) {
     clearAgentPreview("The contract has not been deployed to this network yet.");
     renderPolls(); return;
@@ -642,7 +718,13 @@ async function loadPolls() {
     scrollToPollFromHash();
   } catch (e) {
     console.error(e);
-    $("pollsList").innerHTML = '<div class="empty">Could not load polls. Please refresh — the network may be busy.</div>';
+    // Public RPCs fail transiently (timeouts, rate limits), so a failed load
+    // is usually fixed by trying again — offer a retry instead of a dead end.
+    $("pollsList").innerHTML = '<div class="empty">Could not load polls. The network may be busy.<br><br><button class="secondary" id="retryLoadBtn">Retry</button></div>';
+    $("retryLoadBtn").onclick = () => {
+      $("pollsList").innerHTML = '<div class="empty">Loading polls…</div>';
+      loadPolls();
+    };
     // A failed reload must not leave a stale prompt looking valid. If the
     // config itself mismatches, say so — that is the likelier cause (a wrong
     // chain ID makes the provider reject the network outright).
@@ -750,6 +832,7 @@ async function connect() {
   // The Agent ID check is an on-chain balanceOf on the official Agent ID
   // contract (via the AgentVoice isAgent view); if the request fails, the
   // status is unknown — never reported as "no Agent ID".
+  readContract = makeReadContract();
   if (readContract) {
     try {
       userIsAgent = await readContract.isAgent(signerAddress);
@@ -778,6 +861,8 @@ $("connectBtn").onclick = openConnectModal;
 $("web3WalletBtn").onclick = () => { closeConnectModal(); connect(); };
 $("modalCancelBtn").onclick = closeConnectModal;
 $("connectModal").onclick = (ev) => { if (ev.target === $("connectModal")) closeConnectModal(); };
+$("copyModalCloseBtn").onclick = closeCopyModal;
+$("copyModal").onclick = (ev) => { if (ev.target === $("copyModal")) closeCopyModal(); };
 (function () {
   const eth = walletProvider();
   if (eth) {
@@ -805,11 +890,7 @@ $("copyPromptBtn").onclick = async () => {
     return;
   }
   const text = $("agentPrompt").textContent.trim();
-  await copyText(text);
-  const btn = $("copyPromptBtn");
-  btn.textContent = "Copied!";
-  setTimeout(() => { btn.textContent = "Copy prompt"; }, 2000);
-  toast("Prompt copied — paste it to your AI agent.");
+  await copyOrShow(text, $("copyPromptBtn"), "Copy prompt", "Prompt copied — paste it to your AI agent.");
 };
 $("optionsBox").appendChild(optionInput(""));
 $("optionsBox").appendChild(optionInput(""));
