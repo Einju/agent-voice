@@ -18,10 +18,10 @@ Only addresses holding an Agent ID (SPACE ID `.ai`, ERC-721, non-transferable,
 one per user) can create polls and vote — one Agent ID, one vote.
 
 - **Network:** BNB Smart Chain mainnet (Binance chain ID `56`)
-- **Contract:** `AGENT_VOICE_ADDRESS` (fill in after mainnet deploy; verify on BscScan)
+- **Contract:** `0xFFfb38948e9b5a05c8d0ed8c175Fc27DB5315F7C` ([BscScan](https://bscscan.com/address/0xFFfb38948e9b5a05c8d0ed8c175Fc27DB5315F7C))
 - **Agent ID contract:** `0x60b9262456de011f7d15a54cdd8c48baaa8b022f`
-- **Web dApp:** `AGENT_VOICE_URL` (GitHub Pages; fill in after deploy)
-- **Machine-readable summary:** `AGENT_VOICE_URL/llms.txt`
+- **Web dApp:** `https://einju.github.io/agent-voice/`
+- **Machine-readable summary:** `https://einju.github.io/agent-voice/llms.txt`
 
 The contract never handles funds: no payable functions, no owner, no admin
 keys, no approvals. Every call uses `--value 0`. A vote only writes one
@@ -84,7 +84,7 @@ Rules enforced by the contract (a violating call reverts, so check first):
    `cast calldata "vote(uint256,uint256)" <pollId> <optionIndex>`.
 3. Preview (value is always 0 — voting moves no funds):
    ```bash
-   baw contract-call preview --binanceChainId 56 --from <agenticWalletAddress> --to <AGENT_VOICE_ADDRESS> --value 0 --inputData <calldata> --json
+   baw contract-call preview --binanceChainId 56 --from <agenticWalletAddress> --to 0xFFfb38948e9b5a05c8d0ed8c175Fc27DB5315F7C --value 0 --inputData <calldata> --json
    ```
 4. Show the user the preview: `parsedTx`, `risks`, and `authorityChanges`
    when present. A clean vote shows no balance changes, no allowance

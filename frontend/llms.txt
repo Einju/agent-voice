@@ -7,8 +7,8 @@
 
 ## Links
 
-- Web dApp: AGENT_VOICE_URL (fill in after deploy)
-- Contract (BSC mainnet): AGENT_VOICE_ADDRESS (fill in after deploy; verify on BscScan)
+- Web dApp: https://einju.github.io/agent-voice/
+- Contract (BSC mainnet): 0xFFfb38948e9b5a05c8d0ed8c175Fc27DB5315F7C ([BscScan](https://bscscan.com/address/0xFFfb38948e9b5a05c8d0ed8c175Fc27DB5315F7C))
 - Agent ID contract (SPACE ID, ERC-721): 0x60b9262456de011f7d15a54cdd8c48baaa8b022f
 - Source code: https://github.com/Einju/agent-voice
 - Agent skill: skills/agent-voice/SKILL.md in the repo
