@@ -109,6 +109,7 @@
   .card {
     background: var(--card); border: 1px solid var(--border);
     border-radius: var(--radius); padding: 22px; margin-bottom: 16px;
+    scroll-margin-top: 16px;
   }
   .poll-q { font-size: 18px; font-weight: 700; line-height: 1.35; }
   .poll-meta {
@@ -137,6 +138,7 @@
     background: var(--card-2); border: 1px solid var(--border);
     border-radius: 6px; padding: 2px 8px; margin-left: 8px;
   }
+  .poll-actions { margin-top: 14px; }
 
   form.create label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin: 14px 0 6px; }
   form.create label:first-child { margin-top: 0; }
@@ -229,7 +231,10 @@
   </div>
   <div class="card">
     <p class="agent-text">Your Agent ID may be held in your Binance Agentic Wallet, not the Web3 wallet in this browser. Ask your own AI agent to prepare the vote using Binance's official Agentic Wallet skill. Developer Mode must be enabled in the Binance App. Your agent must show the transaction preview and wait for your explicit approval before submitting. <b>Never share your seed phrase or private key.</b></p>
-    <p class="agent-label">Each poll option below has its own copy button. The prompt for the selected option appears here — copy it and paste it to your agent:</p>
+    <p class="agent-label">Quick way — share a poll link:</p>
+    <p class="agent-text">1. Sign in to your Agentic Wallet once in the Binance app. 2. Copy a poll link below and paste it to your agent, e.g. “Vote for the second option in this poll using my Agentic Wallet — read the site's llms.txt for the contract and instructions.” 3. Check the preview your agent shows, then approve.</p>
+    <p class="agent-label">Or copy the full prompt for one option:</p>
+    <p class="agent-text">Each poll option below has its own copy button. The prompt for the selected option appears here — copy it and paste it to your agent:</p>
     <p class="agent-for" id="agentPromptFor"></p>
     <pre id="agentPrompt" class="prompt">Loading polls…</pre>
     <button type="button" id="copyPromptBtn" class="secondary" disabled>Copy prompt</button>
@@ -474,6 +479,24 @@ async function copyText(text) {
   }
 }
 
+// Shareable link for one poll. Built from the current origin and path so it
+// works on every host serving the site (Netlify, GitHub Pages). The #poll-N
+// fragment is parsed on load to scroll to the poll.
+function pollLink(pollId) {
+  return location.origin + location.pathname + "#poll-" + pollId;
+}
+
+// Deep links: opening #poll-N scrolls to that poll after polls render. The
+// fragment must match a strict numeric pattern; anything else is ignored.
+function scrollToPollFromHash() {
+  const m = /^#poll-(\d+)$/.exec(location.hash);
+  if (!m) return false;
+  const el = document.getElementById("poll-" + m[1]);
+  if (!el) return false;
+  el.scrollIntoView({ behavior: "smooth", block: "start" });
+  return true;
+}
+
 function renderPolls() {
   const list = $("pollsList");
   if (!readContract) {
@@ -490,6 +513,7 @@ function renderPolls() {
     const ended = Date.now() / 1000 >= Number(p.endTime);
     const card = document.createElement("div");
     card.className = "card";
+    card.id = "poll-" + p.id;
     let opts = "";
     p.options.forEach((opt, i) => {
       const v = Number(p.votes[i]);
@@ -516,7 +540,11 @@ function renderPolls() {
       '<span>' + total + ' vote' + (total === 1 ? "" : "s") + '</span>' +
       '<span>' + timeLeft(p.endTime) + '</span>' +
       '<span><a href="' + CFG.explorer + "/address/" + CFG.contractAddress + '" target="_blank" rel="noopener">poll #' + p.id + '</a></span></div>' +
-      opts;
+      opts +
+      // Copy-only: the shareable link for this poll. Shown for every poll,
+      // including ended ones — a link just opens the poll view. It never
+      // connects a wallet or starts a transaction.
+      '<div class="poll-actions"><button class="secondary small" data-link>Copy poll link</button></div>';
     card.querySelectorAll("[data-vote]").forEach((btn) => {
       btn.onclick = () => castVote(p.id, Number(btn.dataset.vote), btn);
     });
@@ -541,6 +569,14 @@ function renderPolls() {
         btn.textContent = "Copied!";
         setTimeout(() => { btn.textContent = "Copy agent prompt"; }, 2000);
         toast("Prompt copied — paste it to your AI agent.");
+      };
+    });
+    card.querySelectorAll("[data-link]").forEach((btn) => {
+      btn.onclick = async () => {
+        await copyText(pollLink(p.id));
+        btn.textContent = "Copied!";
+        setTimeout(() => { btn.textContent = "Copy poll link"; }, 2000);
+        toast("Poll link copied — paste it to your AI agent.");
       };
     });
     list.appendChild(card);
@@ -600,6 +636,10 @@ async function loadPolls() {
     } else {
       clearAgentPreview("No polls yet — the prompt will appear here once a poll is created.");
     }
+    // Scroll only after the preview is settled: filling the preview <pre>
+    // grows the agent card and moves every poll card down, so scrolling
+    // before it would land in the wrong place.
+    scrollToPollFromHash();
   } catch (e) {
     console.error(e);
     $("pollsList").innerHTML = '<div class="empty">Could not load polls. Please refresh — the network may be busy.</div>';
@@ -816,6 +856,9 @@ if (CFG.contractAddress === ZERO) {
   $("contractLink").innerHTML = 'Contract: <a href="' + CFG.explorer + "/address/" + CFG.contractAddress + '" target="_blank" rel="noopener">' + short(CFG.contractAddress) + "</a>";
 }
 $("agentIdLink").innerHTML = 'Agent ID: <a href="' + CFG.explorer + "/address/" + CFG.agentIdContract + '" target="_blank" rel="noopener">' + short(CFG.agentIdContract) + "</a>";
+// A poll link opened while the page is already loaded (hash change) scrolls
+// to that poll too.
+window.addEventListener("hashchange", scrollToPollFromHash);
 loadPolls();
 </script>
 </body>

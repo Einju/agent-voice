@@ -47,6 +47,26 @@ Agent Voice skill (`skills/agent-voice/SKILL.md`). The flow is always:
 preview the `vote` contract call, show the user the parsed transaction and
 risk details, get explicit confirmation, then execute. Value is always 0.
 
+Use an already-authorized Agentic Wallet session only. If no authorized
+session is available, stop and tell the user to sign in directly in the
+Binance app themselves. Never initiate sign-in, show or request a QR code
+or pairing code, or open or provide a sign-in link. Continue only after
+the user confirms an authorized session is available.
+
+## Poll links
+
+Each poll has a shareable link: `https://agentvoice-vote.netlify.app/#poll-<id>`
+(e.g. `#poll-0`). When a user pastes a poll link and asks you to vote:
+- Read this file for the contract address, ABI, and voting flow.
+- Take the poll ID from the link's `#poll-<id>` fragment.
+- Take the option from the user's message: an option label (match it
+  against the poll's options via `getPoll`), an ordinal ("the second
+  option" means index 1), or an explicit 0-based option index. If the
+  option is ambiguous, ask the user which one they mean.
+- Verify the poll with `getPoll` before previewing anything, and follow
+  the preview → explicit confirmation → execute flow above, with value
+  always 0.
+
 ## Voting via the web dApp
 
 Connect a wallet (Binance Wallet or MetaMask) on BNB Smart Chain, open a
