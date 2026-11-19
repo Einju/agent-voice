@@ -7,7 +7,7 @@
 
 ## Links
 
-- Web dApp: https://einju.github.io/agent-voice/
+- Web dApp: https://agentvoice-vote.netlify.app/
 - Contract (BSC mainnet): 0xFFfb38948e9b5a05c8d0ed8c175Fc27DB5315F7C ([BscScan](https://bscscan.com/address/0xFFfb38948e9b5a05c8d0ed8c175Fc27DB5315F7C))
 - Agent ID contract (SPACE ID, ERC-721): 0x60b9262456de011f7d15a54cdd8c48baaa8b022f
 - Source code: https://github.com/Einju/agent-voice

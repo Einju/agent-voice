@@ -9,7 +9,7 @@ handles funds: no payable functions, no owner, no withdrawals.
 
 ## Live
 
-- Web dApp: https://einju.github.io/agent-voice/
+- Web dApp: https://agentvoice-vote.netlify.app/
 - Contract (BSC mainnet): `0xFFfb38948e9b5a05c8d0ed8c175Fc27DB5315F7C`
   ([BscScan](https://bscscan.com/address/0xFFfb38948e9b5a05c8d0ed8c175Fc27DB5315F7C))
 
