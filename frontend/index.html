@@ -419,15 +419,23 @@ function friendlyError(e) {
   return m.slice(0, 120);
 }
 
+// Wallet provider: inside the Binance App's dApp browser the Binance Web3
+// Wallet (which holds the Agent ID) injects window.binancew3w.ethereum;
+// other wallets inject window.ethereum. Prefer Binance's when present.
+function walletProvider() {
+  return (window.binancew3w && window.binancew3w.ethereum) || window.ethereum || null;
+}
+
 async function ensureNetwork() {
   const chainIdHex = "0x" + CFG.chainId.toString(16);
+  const eth = walletProvider();
   try {
-    await window.ethereum.request({
+    await eth.request({
       method: "wallet_switchEthereumChain", params: [{ chainId: chainIdHex }],
     });
   } catch (e) {
     if (e.code === 4902) {
-      await window.ethereum.request({
+      await eth.request({
         method: "wallet_addEthereumChain",
         params: [{ chainId: chainIdHex, chainName: CFG.chainName, rpcUrls: [CFG.rpcUrl], nativeCurrency: { name: "BNB", symbol: "BNB", decimals: 18 }, blockExplorerUrls: [CFG.explorer] }],
       });
@@ -436,13 +444,14 @@ async function ensureNetwork() {
 }
 
 async function connect() {
-  if (!window.ethereum) {
-    toast("No wallet found. Install Binance Wallet or MetaMask, then refresh.", true);
+  const eth = walletProvider();
+  if (!eth) {
+    toast("No wallet found. Open this site inside the Binance App (Web3 Wallet → Browser), or install MetaMask, then refresh.", true);
     return;
   }
   try {
     await ensureNetwork();
-    const provider = new ethers.BrowserProvider(window.ethereum);
+    const provider = new ethers.BrowserProvider(eth);
     signer = await provider.getSigner();
     signerAddress = await signer.getAddress();
     $("connectBtn").textContent = short(signerAddress);
@@ -456,10 +465,13 @@ async function connect() {
 }
 
 $("connectBtn").onclick = connect;
-if (window.ethereum) {
-  window.ethereum.on("accountsChanged", () => location.reload());
-  window.ethereum.on("chainChanged", () => location.reload());
-}
+(function () {
+  const eth = walletProvider();
+  if (eth) {
+    eth.on("accountsChanged", () => location.reload());
+    eth.on("chainChanged", () => location.reload());
+  }
+})();
 
 $("addOpt").onclick = () => {
   if ($("optionsBox").children.length >= 6) { toast("A poll can have at most 6 options.", true); return; }
